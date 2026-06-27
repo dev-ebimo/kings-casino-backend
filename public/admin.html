@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>King's Casino - Admin Control Panel</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+    <div id="adminContent" style="display: none;">
+        <div class="header">
+            <h1>System Management Dashboard</h1>
+            <button id="admin-logout-btn">Secure Exit</button>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <h3>Total Active Players</h3>
+                <div class="value" id="totalPlayers">0</div>
+            </div>
+            <div class="metric-card">
+                <h3>Gross Deposits Volume</h3>
+                <div class="value" id="grossDeposits">₦0.00</div>
+            </div>
+            <div class="metric-card" id="house-earnings-card">
+                <h3>House Net Earnings</h3>
+                <div class="value" id="netEarnings">₦0.00</div>
+            </div>
+        </div>
+
+        <div class="error-section">
+            <h2>Unresolved Paystack Exceptions / Manual Verification Queue</h2>
+            <div class="table-scroll-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Player Username</th>
+                            <th>Paystack Reference Tracking ID</th>
+                            <th>Amount</th>
+                            <th>Gateway Status</th>
+                            <th>System Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="errorLogTable">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted);">
+                                No critical processing exception flags detected in history logs.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="loadingGuard" class="unauthorized-msg">
+        Verifying system administrator security configuration...
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

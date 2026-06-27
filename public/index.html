@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KING'S CASINO - Premium Arena</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="hud-navigation">
+        <div class="logo">King's Casino <span class="accent-text">Spin</span></div>
+
+        <div class="player-profile-badge">
+          <div class="status-indicator-dot"></div>
+          <span class="profile-label">PLAYER</span>
+          <span id="player-tag" class="premium-username">Loading...</span>
+        </div>
+        <div class="balance-badge">
+            Naira Balance: <span class="currency">₦</span><span id="balance-value">0.00</span>
+        </div>
+        
+    </header>
+
+    <main class="arena-container">
+        
+        <section class="stage-panel">
+            <div class="prediction-marker marker-up">UP ZONE</div>
+            
+            <div class="wheel-canvas">
+                <div class="radial-ring"></div>
+                <div id="bottle-sprite" class="bottle-base">
+                    <div class="css-bottle-cap"></div>
+                    <div class="css-bottle-neck"></div>
+                    <div class="css-bottle-body"></div>
+                </div>
+            </div>
+            
+            <div class="prediction-marker marker-down">DOWN ZONE</div>
+        </section>
+
+        <section class="control-panel">
+            <h2>Place Your Wager</h2>
+            <p id="result-message" class="game-status-message">Select target zone and allocate stake</p>
+
+            <div class="prediction-selector">
+                <button type="button" class="zone-btn" id="btn-pick-up" data-zone="up">Predict UP</button>
+                <button type="button" class="zone-btn" id="btn-pick-down" data-zone="down">Predict DOWN</button>
+            </div>
+
+            <div class="stake-slider-group">
+                <div class="label-row">
+                    <label>Risk Amount</label>
+                    <div class="input-wrapper">
+                        <span>₦</span>
+                        <input type="number" id="stake-number" value="50" min="10" max="1000">
+                    </div>
+                </div>
+
+                <input type="range" id="stake-slider" value="50" min="10" max="1000" step="10">
+
+                <div class="chip-container">
+                    <button type="button" class="chip-btn" data-preset="10">₦10</button>
+                    <button type="button" class="chip-btn" data-preset="50">₦50</button>
+                    <button type="button" class="chip-btn" data-preset="100">₦100</button>
+                    <button type="button" class="chip-btn" data-preset="500">₦500</button>
+                    <button type="button" class="chip-btn" id="btn-max-chip">MAX</button>
+                </div>
+            </div>
+
+            <button type="button" id="spin-trigger" class="main-action-btn" disabled>Select Target Zone First</button>
+
+            <div class="stake-slider-group" style="margin-top: 1.5rem; border-top: 2px dashed #1e293b; padding-top: 1.5rem;">
+               <div class="label-row">
+                 <span style="font-weight: bold; color: var(--text-light);">Fund Game Balance</span>
+                 <span style="color: var(--text-muted); font-size: 0.85rem;">via Paystack</span>
+                </div>
+    
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                  <div class="input-wrapper" style="flex: 1;">
+                   <span>₦</span>
+                   <input type="number" id="deposit-amount" value="1000" min="100" style="width: 100%; text-align: left; padding-left: 5px;">
+                  </div>
+                 <button id="deposit-trigger" class="chip-btn" style="background-color: var(--accent-green); color: white; border: none; padding: 0 1.5rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                  Deposit
+                 </button>
+                </div>
+                <div id="deposit-error" style="font-size: 0.85rem; margin-top: 0.4rem; color: #ef4444;"></div>
+            </div>
+        </section>
+
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>

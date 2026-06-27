@@ -1,0 +1,175 @@
+:root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --accent-color: #10b981;
+    --secondary-accent: #3b82f6;
+    --text-color: #f8fafc;
+    --input-bg: #0f172a;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.auth-container {
+    background-color: var(--card-bg);
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 450px;
+    box-sizing: border-box;
+}
+
+h1 {
+    text-align: center;
+    font-size: 2rem;
+    margin-top: 0;
+    margin-bottom: 2rem;
+    color: var(--text-color);
+    letter-spacing: 1px;
+}
+
+.auth-form h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    color: #94a3b8;
+}
+
+/* INPUT TEXT BOXES */
+input {
+    width: 100%;
+    background-color: var(--input-bg);
+    border: 1px solid #334155;
+    color: var(--text-color);
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+input:focus {
+    /* It activates when a user clicks on an input text box */
+    outline: none;
+    border-color: var(--secondary-accent);
+}
+
+/* BUTTON ARCHITECTURE */
+button {
+    width: 100%;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.9rem;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s, background-color 0.2s;
+}
+
+button:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background-color: var(--secondary-accent);
+}
+
+/* VISUAL SEPARATOR */
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #475569;
+    font-weight: bold;
+    font-size: 0.85rem;
+    margin: 2rem 0;
+}
+/* ::before- injects a virtual box right before the text "OR". While ::after- injects a virtual box right after the text "OR". */
+.divider::before,
+.divider::after {
+    /* ::before and ::after are CSS Pseudo elements that allows us to dynamically insert virtual HTML elements into a web page using pure CSS, without actually typing them out in your "index.html" file*/
+    content: '';
+    /* "content"- without this property the element will not render at all. By passing an empty string (''), we are telling the browser to create a blank HTML element on the screen that we can style */
+    flex: 1; /* this sets the display of this element to "flex". */
+    border-bottom: 1px solid #334155;
+}
+
+.divider:not(:empty)::before {
+    /* :not(:empty)- targets the .divider container, but only if it's NOT completely empty. This ensures that an empty div with a class="divider" won't apply unnecessary inner margins that break the layout alignment. */
+    margin-right: .75em;
+}
+
+.divider:not(:empty)::after {
+    margin-left: .75em;
+}
+
+.message {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    min-height: 1.2rem;
+    font-weight: 500;
+}
+/* PASSWORD STRUCTURAL LAYER WRAPPER */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+    /* THE FIX: Reallocated layout baseline margin spacing from input down to parent container */
+    margin-bottom: 1rem;
+}
+
+.password-wrapper input {
+    margin-bottom: 0; /* Clear inner box margin so height resolves flat */
+    padding-right: 3.5rem; /* Makes room so text doesn't type under the "Show" button */ 
+}
+
+.toggle-password {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+    color: #3b82f6; 
+    cursor: pointer;
+    font-weight: bold;
+    user-select: none; /* Prevents the text from highlighting blue when clicked fast */
+}
+
+.toggle-password:hover {
+    opacity: 0.8;
+}
+/* MOBILE DESIGN ADAPTATIONS */
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    .auth-container {
+        padding: 1.5rem;
+        border-radius: 12px;
+    }
+    h1 {
+        font-size: 1.6rem;
+        margin-bottom: 1.5rem;
+    }
+    input, button {
+        padding: 0.8rem;
+        font-size: 0.95rem;
+    }
+}

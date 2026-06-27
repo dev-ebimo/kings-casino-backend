@@ -1,0 +1,408 @@
+:root {
+    --bg-dark: #0b0f19;
+    --panel-bg: #141b2d;
+    --accent-green: #10b981;
+    --accent-orange: #f97316;
+    --text-light: #f8fafc;
+    --text-muted: #64748b;
+    --border-glow: #1e293b;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* HEADS UP DISPLAY (HUD) NAV */
+.hud-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--panel-bg);
+    padding: 1rem 2rem;
+    border-bottom: 2px solid var(--border-glow);
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.accent-text {
+    color: var(--accent-green);
+}
+
+.player-profile-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    padding: 0.4rem 1rem;
+    border-radius: 50px; /* Pill shape design */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 
+                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+/* Pulsing online network state node marker */
+.status-indicator-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-green, #10b981);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent-green, #10b981);
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.profile-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: #64748b; /* Sleek muted slate label */
+    text-transform: uppercase;
+}
+
+/* The core stylized text presentation */
+.premium-username {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.02em;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    font-family: 'Poppins', 'Inter', sans-serif;
+}
+
+/* Subtle interactive cursor hover reaction */
+.player-profile-badge:hover {
+    border-color: #475569;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.balance-badge {
+    background-color: var(--bg-dark);
+    padding: 0.5rem 1.2rem;
+    border-radius: 50px;
+    font-weight: bold;
+    border: 1px solid #334155;
+}
+
+.currency {
+    color: var(--accent-green);
+    margin-right: 4px;
+}
+
+/* WIDESCREEN DOUBLE PANEL ARENA */
+.arena-container {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 2rem;
+    max-width: 1200px;
+    width: 100%;
+    margin: auto;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+/* LEFT PANEL: VISUAL SPINNING ARENA */
+.stage-panel {
+    background-color: var(--panel-bg);
+    border-radius: 20px;
+    border: 1px solid var(--border-glow);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    position: relative;
+    min-height: 450px;
+}
+
+.prediction-marker {
+    font-weight: 900;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    padding: 6px 16px;
+    border-radius: 4px;
+}
+
+.marker-up { color: var(--accent-green); }
+.marker-down { color: var(--accent-orange); }
+
+/* THE RADIAL GRAPHIC CANVAS WRAPPER */
+.wheel-canvas {
+    width: 300px;
+    height: 300px;
+    margin: 1.5rem 0;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Draws the split horizontal board background matching your image */
+.radial-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 8px solid #1e293b;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    background: linear-gradient(to bottom, rgba(16, 185, 129, 0.15) 50%, rgba(249, 115, 22, 0.15) 50%);
+}
+
+/* Add a crisp horizontal split line */
+.radial-ring::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    top: 50%;
+    border-top: 2px dashed #475569;
+}
+
+/* The main invisible bounding box rotating around the center axis */
+.bottle-base {
+    width: 240px;
+    height: 60px;
+    z-index: 10;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: flex-start;
+    transform: rotate(0deg); /* Managed dynamically via JavaScript */
+    transition: transform 4s cubic-bezier(0.25, 1, 0.5, 1);
+    cursor: pointer;
+    filter: drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.6));
+}
+
+/* 1. The Bottle Cap / Lip */
+.css-bottle-cap {
+    width: 10px;
+    height: 16px;
+    background-color: #059669; /* Darker green cap */
+    border-radius: 4px 2px 2px 4px;
+}
+
+/* 2. The Bottle Neck */
+.css-bottle-neck {
+    width: 60px;
+    height: 20px;
+    background: linear-gradient(to bottom, #10b981, #047857); /* High-gloss glass gradient */
+    border-bottom: 1px solid rgba(0,0,0,0.2);
+}
+
+/* 3. The Bottle Body */
+.css-bottle-body {
+    width: 170px;
+    height: 54px;
+    background: linear-gradient(to bottom, #34d399, #10b981, #065f46); /* Beautiful 3D cylindrical sheen */
+    border-radius: 12px 18px 18px 12px; /* Tapered shoulders and rounded base */
+    position: relative;
+    box-shadow: inset 0 4px 8px rgba(255,255,255,0.3), inset 0 -4px 8px rgba(0,0,0,0.4);
+}
+
+/* High-gloss glass reflection stripe running down the center body */
+.css-bottle-body::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 8px;
+    width: 150px;
+    height: 6px;
+    background-color: rgba(255, 255, 255, 0.4);
+    border-radius: 3px;
+    filter: blur(0.5px);
+}
+
+/* RIGHT PANEL: SLIDER AND RISK PANEL */
+.control-panel {
+    background-color: var(--panel-bg);
+    border-radius: 20px;
+    border: 1px solid var(--border-glow);
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.control-panel h2 {
+    margin-top: 0;
+    font-size: 1.6rem;
+}
+
+.game-status-message {
+    background-color: var(--bg-dark);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+    font-size: 0.95rem;
+    color: #94a3b8;
+}
+
+/* INTERACTIVE TOGGLE BUTTONS */
+.prediction-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.zone-btn {
+    background-color: var(--bg-dark);
+    border: 2px solid #334155;
+    color: var(--text-light);
+    padding: 1rem;
+    font-weight: bold;
+    font-size: 1rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.zone-btn[data-zone="up"].active {
+    border-color: var(--accent-green);
+    background-color: rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.zone-btn[data-zone="down"].active {
+    border-color: var(--accent-orange);
+    background-color: rgba(249, 115, 22, 0.1);
+    box-shadow: 0 0 15px rgba(249, 115, 22, 0.2);
+}
+
+/* INPUT SLIDER ARCHITECTURE */
+.stake-slider-group {
+    background-color: var(--bg-dark);
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.input-wrapper {
+    display: flex;
+    align-items: center;
+    background-color: var(--panel-bg);
+    border: 1px solid #334155;
+    padding: 4px 12px;
+    border-radius: 6px;
+}
+
+.input-wrapper span {
+    color: var(--accent-green);
+    font-weight: bold;
+}
+
+.input-wrapper input {
+    background: transparent;
+    border: none;
+    color: white;
+    width: 60px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: right;
+}
+.input-wrapper input:focus { outline: none; }
+/* THE FIX: Hide native increment/decrement spin arrows uniformly */
+.input-wrapper input::-webkit-outer-spin-button,
+.input-wrapper input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.input-wrapper input[type=number] {
+    appearance: textfield;
+}
+/* Customizing the Range Bar track cross-browser */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    margin: 1rem 0;
+    background: #1e293b;
+    height: 6px;
+    border-radius: 3px;
+    accent-color: var(--accent-green);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 18px;
+    width: 18px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    cursor: pointer;
+}
+
+/* CHIP CONTAINER */
+.chip-container {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.chip-btn {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    padding: 6px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.chip-btn:hover { background-color: #334155; }
+
+/* MASTER TRIGGER PLACEMENT */
+.main-action-btn {
+    width: 100%;
+    padding: 1.2rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: white;
+    background-color: #334155;
+    border: none;
+    border-radius: 12px;
+    cursor: not-allowed;
+    transition: all 0.2s;
+}
+
+.main-action-btn.ready {
+    background-color: var(--accent-green);
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+}
+.main-action-btn.ready:active { transform: scale(0.98); }
+
+/* MOBILE RESPONSIVE WRAPPING */
+@media (max-width: 768px) {
+    .arena-container {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    .stage-panel { min-height: 350px; }
+}
+/* Animation Keyframes for the live status locator node */
+@keyframes pulseGlow {
+    0% { transform: scale(0.95); opacity: 0.6; box-shadow: 0 0 4px var(--accent-green, #10b981); }
+    50% { transform: scale(1.05); opacity: 1; box-shadow: 0 0 12px var(--accent-green, #10b981); }
+    100% { transform: scale(0.95); opacity: 0.6; box-shadow: 0 0 4px var(--accent-green, #10b981); }
+}
