@@ -393,8 +393,9 @@ app.post('/deposit/webhook', async (req, res) => {
 
             console.log(`[WEBHOOK] Verified payload received for user: ${extractedUsername}. Adding ₦${nairaAmount}`);
 
-            const player = await User.findOne({
-                 username: { $regex: new RegExp(`^${extractedUsername}$`, 'i') } 
+            // This forces MongoDB to match the username while completely ignoring capital/lowercase differences
+            const player = await User.findOne({ 
+            username: { $regex: new RegExp('^' + extractedUsername + '$', 'i') } 
             });
             
             if (player) {

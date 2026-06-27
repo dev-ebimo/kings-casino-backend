@@ -5,6 +5,19 @@ const sfxSpin = new Audio('audio/spin-loop.mp3');
 const sfxWin = new Audio('audio/win.wav');
 const sfxLoss = new Audio('audio/loss.wav');
 // Configure the spin loop audio to repeat naturally while velocity is high
+sfxClick.preload = 'auto';
+sfxInput.preload = 'auto';
+sfxSpin.preload = 'auto';
+sfxWin.preload = 'auto';
+sfxLoss.preload = 'auto';
+
+// Forces mobile browsers to cache the audio file immediately
+sfxClick.load();
+sfxInput.load();
+sfxSpin.load();
+sfxWin.load();
+sfxLoss.load();
+
 sfxSpin.loop = true;
 
 // Grabs reference hooks to our HTML elements using their unique ID's
