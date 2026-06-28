@@ -6,7 +6,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt'); 
 const jwt = require('jsonwebtoken'); 
 const axios = require('axios'); // Standardized for all outbound API communication calls
-const cors = require('cors');  
+const cors = require('cors'); 
+const crypto = require('crypto');
 
 // Pull environmental secrets dynamically with solid local code backups
 const JWT_SECRET = process.env.JWT_SECRET || '3e056bd234b47c7096bd38208688986a7534892aba0bbaa5410357387d692117ea64906947ca39abc91afafd77d9af0cf3695fef17fe4b3afa6286b42e6df898';
@@ -34,7 +35,7 @@ app.use(cors({
     },
     credentials: true, 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature']
 }));
 
 app.use(express.json()); 
@@ -239,7 +240,8 @@ app.post('/spin', authenticateToken, async (req, res) => {
         let exactAngle = 0;
 
         if (isWin) {
-            player.balance += betAmount;
+            // Correct atomic calculation math reference path
+            player.balance = initialBalanceSnap + betAmount;
             player.lossStreak = 0;
             player.totalWins += 1;
 
@@ -251,7 +253,8 @@ app.post('/spin', authenticateToken, async (req, res) => {
                 else { exactAngle = Math.floor(90 + (Math.random() * 90 - 45)); }
             }
         } else {
-            player.balance -= betAmount;
+            // Correct atomic calculation math reference path
+            player.balance = initialBalanceSnap - betAmount;
             player.lossStreak += 1;
 
             if (prediction === 'up') {
@@ -307,7 +310,6 @@ app.post('/deposit/initialize', authenticateToken, async (req, res) => {
         const amountInKobo = Math.floor(Number(amount) * 100);
         const userEmail = `${player.username}@kingscasino.com`; 
         
-        // THE FIX: Grabs the live token dynamically inside the route context safely
         const callbackUrl = `${process.env.APP_BASE_URL}/deposit/callback`;
 
         console.log(`[PAYSTACK DEBUG] Outbound sanitized email: ${userEmail}`);
@@ -339,7 +341,6 @@ app.post('/deposit/initialize', authenticateToken, async (req, res) => {
     }
 });
 
-// THE FIX: Handles user browser landing redirects smoothly back into the interface layout
 app.get('/deposit/callback', (req, res) => {
     try {
         const { reference } = req.query;
@@ -381,10 +382,32 @@ app.get('/deposit/callback', (req, res) => {
 
 app.post('/deposit/webhook', async (req, res) => {
     try {
+        // SECURITY UPDATE: Validate Paystack Signature Header
+        const signature = req.headers['x-paystack-signature'];
+        if (!signature) {
+            return res.status(401).send("Missing security validation passport signature.");
+        }
+
+        const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
+                           .update(JSON.stringify(req.body))
+                           .digest('hex');
+
+        if (hash !== signature) {
+            return res.status(401).send("Security verification failed. Signature mismatch.");
+        }
+
         const event = req.body;
 
         if (event && event.event === 'charge.success') {
             const reference = event.data.reference;
+
+            // INTEGRITY UPDATE: Prevent duplicate processing of the same reference
+            const existingTx = await Transaction.findOne({ reference: reference });
+            if (existingTx) {
+                console.log(`[WEBHOOK WARNING] Reference ${reference} already processed. Skipping to avoid double-crediting.`);
+                return res.sendStatus(200);
+            }
+
             const koboAmount = event.data.amount;
             const nairaAmount = Math.floor(koboAmount / 100);
             
@@ -393,9 +416,8 @@ app.post('/deposit/webhook', async (req, res) => {
 
             console.log(`[WEBHOOK] Verified payload received for user: ${extractedUsername}. Adding ₦${nairaAmount}`);
 
-            // This forces MongoDB to match the username while completely ignoring capital/lowercase differences
             const player = await User.findOne({ 
-            username: { $regex: new RegExp('^' + extractedUsername + '$', 'i') } 
+                username: { $regex: new RegExp('^' + extractedUsername + '$', 'i') } 
             });
             
             if (player) {

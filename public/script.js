@@ -4,6 +4,7 @@ const sfxInput = new Audio('audio/input.wav');
 const sfxSpin = new Audio('audio/spin-loop.mp3');
 const sfxWin = new Audio('audio/win.wav');
 const sfxLoss = new Audio('audio/loss.wav');
+
 // Configure the spin loop audio to repeat naturally while velocity is high
 sfxClick.preload = 'auto';
 sfxInput.preload = 'auto';
@@ -11,14 +12,22 @@ sfxSpin.preload = 'auto';
 sfxWin.preload = 'auto';
 sfxLoss.preload = 'auto';
 
-// Forces mobile browsers to cache the audio file immediately
-sfxClick.load();
-sfxInput.load();
-sfxSpin.load();
-sfxWin.load();
-sfxLoss.load();
-
 sfxSpin.loop = true;
+
+// Mobile Web Audio Unlock Context Wrapper
+function unlockMobileAudio() {
+    sfxClick.play().then(() => { sfxClick.pause(); sfxClick.currentTime = 0; });
+    sfxInput.play().then(() => { sfxInput.pause(); sfxInput.currentTime = 0; });
+    sfxSpin.play().then(() => { sfxSpin.pause(); sfxSpin.currentTime = 0; });
+    sfxWin.play().then(() => { sfxWin.pause(); sfxWin.currentTime = 0; });
+    sfxLoss.play().then(() => { sfxLoss.pause(); sfxLoss.currentTime = 0; });
+    
+    // Remove listener immediately after first successful touch execution to optimize performance
+    document.removeEventListener('click', unlockMobileAudio);
+    document.removeEventListener('touchstart', unlockMobileAudio);
+}
+document.addEventListener('click', unlockMobileAudio);
+document.addEventListener('touchstart', unlockMobileAudio);
 
 // Grabs reference hooks to our HTML elements using their unique ID's
 const balanceValue = document.getElementById('balance-value');
@@ -27,7 +36,7 @@ const resultMessage = document.getElementById('result-message');
 const spinTrigger = document.getElementById('spin-trigger');
 const bottleSprite = document.getElementById('bottle-sprite');
 
-//Input synchronizers
+// Input synchronizers
 const stakeNumber = document.getElementById('stake-number');
 const stakeSlider = document.getElementById('stake-slider');
 
@@ -95,7 +104,7 @@ document.querySelectorAll('.chip-btn').forEach(chip => {
      
         sfxClick.currentTime = 0;
         sfxClick.play().catch(err => console.log("Audio blocked"));
-       // Recalculate and force update the glowing button text!
+        // Recalculate and force update the glowing button text!
         updateButtonLabel();
     });
 });
@@ -108,7 +117,7 @@ function selectPredictionZone(zone) {
     
     if (zone === 'up') {
         btnPickUp.classList.add('active');
-        btnPickDown.classList.remove('active');
+        btnPickGroup = btnPickDown.classList.remove('active');
     } else {
         btnPickDown.classList.add('active');
         btnPickUp.classList.remove('active');
@@ -124,11 +133,11 @@ btnPickUp.addEventListener('click', () => selectPredictionZone('up'));
 btnPickDown.addEventListener('click', () => selectPredictionZone('down'));
 
 // Dynamic text listener on stake values to keep button label updated in real-time
-const updateButtonLabel = () => {
+function updateButtonLabel() {
     if (selectedZone && !isSpinning) {
         spinTrigger.textContent = `Spin for ₦${stakeNumber.value}!`;
     }
-};
+}
 stakeSlider.addEventListener('input', updateButtonLabel);
 stakeNumber.addEventListener('input', updateButtonLabel);
 
@@ -140,9 +149,9 @@ spinTrigger.addEventListener('click', async () => {
 
     isSpinning = true;
     spinTrigger.disabled = true;
+    
     // FIRE IMMEDIATELY: Play click and kick off the rotating loop sound track
-
-    // Start the visual click and audio spin animation anticipation loops
+    sfxClick.currentTime = 0;
     sfxClick.play().catch(err => console.log("Audio blocked"));
     sfxSpin.currentTime = 0;
     sfxSpin.play().catch(err => console.log("Audio blocked"));
@@ -210,7 +219,7 @@ spinTrigger.addEventListener('click', async () => {
 
         // 5. Intercept transition end hook (Matches our 4-second cubic-bezier CSS timer)
         setTimeout(() => {
-            // INSTANTLY KILL THE SPINNING LOOP SOUND
+            // INSTANTLY KILL THE SPINING LOOP SOUND
             sfxSpin.pause();
             sfxSpin.currentTime = 0;
             // Update UI balances smoothly after bottle clicks into place
@@ -253,7 +262,7 @@ spinTrigger.addEventListener('click', async () => {
 // 3. Create a function to fetch the real balance when the page opens
 async function loadInitialBalance() {
     try {
-        // Send a POST request to /balance containing the active user's ID
+        // Send a GET request to /balance containing the active user's passport token
         const response = await fetch('/balance', {
             method: 'GET',
             headers: { 
@@ -264,7 +273,7 @@ async function loadInitialBalance() {
         
         // Overwrite the placeholder "000" with the true database balance
         if(response.ok){
-          balanceValue.textContent = Number(data.balance).toFixed(2);
+            balanceValue.textContent = Number(data.balance).toFixed(2);
         } else {
             balanceValue.textContent = "Error";
             resultMessage.textContent = data.message;
