@@ -10,15 +10,19 @@
     <header class="hud-navigation">
         <div class="logo">King's Casino <span class="accent-text">Spin</span></div>
 
-        <div class="player-profile-badge">
-          <div class="status-indicator-dot"></div>
-          <span class="profile-label">PLAYER</span>
-          <span id="player-tag" class="premium-username">Loading...</span>
+        <div class="nav-meta-wrapper">
+            <div class="player-profile-badge">
+                <div class="status-indicator-dot"></div>
+                <span class="profile-label">PLAYER</span>
+                <span id="player-tag" class="premium-username">Loading...</span>
+            </div>
+            
+            <div class="balance-badge">
+                Naira Balance: <span class="currency">₦</span><span id="balance-value">0.00</span>
+            </div>
+
+            <button type="button" id="btn-logout">Logout</button>
         </div>
-        <div class="balance-badge">
-            Naira Balance: <span class="currency">₦</span><span id="balance-value">0.00</span>
-        </div>
-        
     </header>
 
     <main class="arena-container">

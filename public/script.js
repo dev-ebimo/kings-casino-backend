@@ -44,6 +44,9 @@ const stakeSlider = document.getElementById('stake-slider');
 const btnPickUp = document.getElementById('btn-pick-up');
 const btnPickDown = document.getElementById('btn-pick-down');
 
+// Logout button
+const logoutTrigger = document.getElementById('btn-logout');
+
 // Fetch our token from local storage memory instead of raw IDs
 const token = localStorage.getItem('userToken');
 const username = localStorage.getItem('username');
@@ -330,3 +333,14 @@ depositTrigger.addEventListener('click', async () => {
         depositTrigger.textContent = "Deposit";
     }
 });
+// SECURE SYSTEM LOGOUT FLOW CONTROLLER
+if (logoutTrigger) {
+    logoutTrigger.addEventListener('click', () => {
+        // Clear authorization keys cleanly out of client runtime memory
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('username');
+        
+        // Evict immediately back to secure login access node
+        window.location.href = 'auth.html';
+    });
+}
