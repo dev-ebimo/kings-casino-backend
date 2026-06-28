@@ -3,17 +3,55 @@ require('dotenv').config();
 
 const express = require('express'); 
 const mongoose = require('mongoose'); 
-const bcrypt = require('bcrypt'); 
+const bcrypt = require('bcryptjs'); // Swapped to bcryptjs to prevent compilation errors across environments
 const jwt = require('jsonwebtoken'); 
 const axios = require('axios'); // Standardized for all outbound API communication calls
 const cors = require('cors'); 
 const crypto = require('crypto');
+const winston = require('winston');
 
-// Pull environmental secrets dynamically with solid local code backups
-const JWT_SECRET = process.env.JWT_SECRET || '3e056bd234b47c7096bd38208688986a7534892aba0bbaa5410357387d692117ea64906947ca39abc91afafd77d9af0cf3695fef17fe4b3afa6286b42e6df898';
+// CRITICAL SECURITY FIXES: Imported missing production packages
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const rateLimit = require('express-rate-limit');
+
+// CRITICAL SECURITY FIX: Never supply a default secret string inside your codebase
+if (!process.env.JWT_SECRET) {
+    console.error("FATAL ERROR: JWT_SECRET environment variable is completely missing!");
+    process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const app = express(); 
 const PORT = process.env.PORT || 3000; 
+
+// ENTERPRISE SYSTEM LOGGING LAYER (WINSTON)
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+    ),
+    defaultMeta: { service: 'casino-backend-engine' },
+    transports: [
+        // Save records of errors explicitly
+        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+        // Capture everything cleanly in a historical master roll file
+        new winston.transports.File({ filename: 'logs/combined.log' })
+    ]
+});
+
+// If we are developing locally, print formatted logs directly to the console too
+if (process.env.NODE_ENV !== 'production') {
+    logger.add(new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        )
+    }));
+}
 
 // Clean, standardized HTTP domain string addresses for CORS validation
 const allowedOrigins = [
@@ -21,8 +59,11 @@ const allowedOrigins = [
     'http://127.0.0.1:3000',
     'http://localhost:5500', 
     'http://127.0.0.1:5500',
-    'https://kings-casino-backend.onrender.com' // ◄ ADD YOUR LIVE RENDER URL HERE
+    'https://kings-casino-backend.onrender.com'
 ];
+
+// Secure HTTP Headers
+app.use(helmet());
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -30,6 +71,7 @@ app.use(cors({
         if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true); 
         } else {
+            logger.warn(`CORS Violation Encountered: Unauthorized origin attempted connection`, { origin });
             callback(new Error('Blocked by CORS Policy: This origin is unauthorized.'));
         }
     },
@@ -38,17 +80,114 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature']
 }));
 
+// CRITICAL RESTRUCTURE: PRE-PARSED WEBHOOK
+// This endpoint must live ABOVE express.json() to capture raw payload text buffers
+app.post('/deposit/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+        const signature = req.headers['x-paystack-signature'];
+        if (!signature) {
+            logger.error('Webhook Access Failure: Missing X-Paystack-Signature Header');
+            return res.status(401).send("Missing security validation passport signature.");
+        }
+
+        // Calculate cryptographic hash matching against the immutable raw text buffer request bytes
+        const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
+                           .update(req.body)
+                           .digest('hex');
+
+        if (hash !== signature) {
+            logger.error('Security Breach Prevented: Paystack Webhook Cryptographic Signature Mismatch');
+            return res.status(401).send("Security verification failed. Signature mismatch.");
+        }
+
+        // Since the body is an unparsed buffer string, we manually unpack it now
+        const event = JSON.parse(req.body.toString());
+
+        if (event && event.event === 'charge.success') {
+            const reference = event.data.reference;
+
+            // Prevent duplicate processing of the same transaction reference
+            const existingTx = await Transaction.findOne({ reference: reference });
+            if (existingTx) {
+                logger.warn(`Duplicate Deposit Event Blocked: Paystack Reference already processed`, { reference });
+                return res.sendStatus(200);
+            }
+
+            const koboAmount = event.data.amount;
+            const nairaAmount = Math.floor(koboAmount / 100);
+            
+            const userEmail = event.data.customer.email;
+            const extractedUsername = userEmail.split('@')[0];
+
+            logger.info(`Valid Payload Received: Processing deposit transaction request`, { username: extractedUsername, reference, amount: nairaAmount });
+
+            // Safe regex lookup avoiding injection vulnerabilities
+            const cleanEscapedUsername = extractedUsername.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const player = await User.findOne({ 
+                username: { $regex: new RegExp('^' + cleanEscapedUsername + '$', 'i') } 
+            });
+            
+            if (player) {
+                const balanceBefore = player.balance;
+                const balanceAfter = balanceBefore + nairaAmount;
+
+                player.balance = balanceAfter;
+                await player.save();
+
+                const depositRecord = new Transaction({
+                    userId: player._id,
+                    type: 'deposit',
+                    amount: nairaAmount,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
+                    reference: reference, 
+                    status: 'success'
+                });
+                await depositRecord.save();
+
+                logger.info(`Wallet Successfully Funded: Balance updated on database`, { username: player.username, newBalance: balanceAfter });
+            } else {
+                logger.error(`Deposit Settlement Failed: User account not found on database`, { username: extractedUsername, reference });
+            }
+        }
+        res.sendStatus(200);
+    } catch (error) {
+        logger.error("Critical Failure inside Paystack Webhook Controller Node", { error: error.message });
+        res.sendStatus(500);
+    }
+});
+
+// Standard Parsers for all subsequent standard API route collections
 app.use(express.json()); 
+
+// Data Sanitization against NoSQL Injection (drops keys starting with $ or .)
+app.use((req, res, next) => {
+    req.body = mongoSanitize(req.body);
+    req.query = mongoSanitize(req.query);
+    next();
+});
+
+// Data Sanitization against XSS (cleans malicious HTML fragments)
+app.use(xss());
 app.use(express.static('public')); 
 
-// Dynamic Database Profile Switching
+// Rate Limiting to prevent Login / Authentication Brute-Force Attacks
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 15, 
+    message: { error: 'Too many attempts from this IP. Please try again after 15 minutes.' }
+});
+app.use('/signup', authLimiter);
+app.use('/login', authLimiter);
+
+// Dynamic Database Connection Mapping
 const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/spin_db';
 
 mongoose.connect(mongoURI)
-    .then(() => console.log(`MongoDB connected successfully to profile: ${mongoURI.includes('localhost') ? 'DEVELOPMENT (Local)' : 'PRODUCTION (Cloud)'}`))
-    .catch(err => console.error("Database connection failure:", err));
+    .then(() => logger.info(`MongoDB connection established successfully`, { cluster: mongoURI.includes('localhost') ? 'LOCAL_DEVELOPMENT' : 'CLOUD_ATLAS_PRODUCTION' }))
+    .catch(err => logger.error("Database initialization execution failure", { error: err.message }));
 
-// SYSTEM BLUEPRINTS & MODELS
+// SYSTEM SCHEMAS & INTERACTION DATABASE MODELS
 const UserSchema = new mongoose.Schema({
     username: { type: String, unique: true, required: true },
     password: { type: String, required: true },
@@ -58,7 +197,6 @@ const UserSchema = new mongoose.Schema({
     totalSpins: { type: Number, default: 0},
     totalWins: { type: Number, default: 0}
 }); 
-
 const User = mongoose.model('User', UserSchema); 
 
 const TransactionSchema = new mongoose.Schema({
@@ -71,10 +209,9 @@ const TransactionSchema = new mongoose.Schema({
     status: { type: String, enum: ['pending', 'success', 'failed'], default: 'success' },
     createdAt: { type: Date, default: Date.now }
 });
-
 const Transaction = mongoose.model('Transaction', TransactionSchema);
 
-// MIDDLEWARE SECURITY HANDSHAKES
+// SECURITY AUTHENTICATION HANDSHAKES
 function authenticateToken(req, res, next){
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; 
@@ -96,35 +233,43 @@ async function isAdmin(req, res, next) {
     try {
         const user = await User.findOne({ _id: req.userId });
         if (!user || user.role !== 'admin') {
-            console.warn(`[SECURITY WARNING] Unauthorized admin access attempt by User ID: ${req.userId}`);
+            logger.warn(`[SECURITY WARNING] Unauthorized administration workspace breakout attempt intercepted`, { userId: req.userId });
             return res.status(403).json({ message: "Access Denied: Admin privileges required." });
         }
         next(); 
     } catch (error) {
+        logger.error("Authentication validation server error", { error: error.message });
         res.status(500).json({ message: "Auth validation server error." });
     }
 }
 
-// SECURE AUTHENTICATION ENDPOINTS
+// USER ACCOUNT REGISTRATION & SECURITY SIGNUP
 app.post('/signup', async(req, res) => {
     try {
         const { username, password } = req.body; 
+
+        if (!username || !password || username.trim().length < 3) {
+            return res.status(400).json({ message: "Invalid validation criteria parameters supplied." });
+        }
 
         const existingUser = await User.findOne({ username });
         if (existingUser) {
             return res.status(400).json({ message: "Username is already taken." });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 12);
         const newUser = new User({
-            username,
+            username: username.trim(),
             password: hashedPassword 
         });
 
         await newUser.save();
+        logger.info(`New Player Registered`, { username: newUser.username, id: newUser._id });
+        
         res.json({ message: "Account created successfully! You can now log in." });
     }
     catch(error){
+        logger.error("Registration operational pipeline processing failure", { error: error.message });
         res.status(500).json({ message: "Server error during registration."});
     }
 });
@@ -135,19 +280,23 @@ app.post('/login', async (req, res) => {
 
         const player = await User.findOne({ username });
         if (!player) {
+            logger.warn(`Authentication Failure: Non-existent profile registration name lookup`, { username });
             return res.status(400).json({ message: "Invalid username or password." });
         }
 
         const isMatch = await bcrypt.compare(password, player.password);
         if (!isMatch) {
+            logger.warn(`Authentication Failure: Password verification challenge mismatch`, { username });
             return res.status(400).json({ message: "Invalid username or password." });
         } 
         
         const token = jwt.sign(
-            { userId: player._id },
+            { userId: player._id, role: player.role },
             JWT_SECRET,
             { expiresIn: '2h'} 
         );
+
+        logger.info(`User Authenticated Successfully`, { username: player.username, role: player.role });
 
         res.json({
             message: "Login successful! Welcome back.",
@@ -156,11 +305,11 @@ app.post('/login', async (req, res) => {
         });
 
     } catch (error) {
+        logger.error("Login verification loop framework failure", { error: error.message });
         res.status(500).json({ message: "Server error during login." });
     }
 });
 
-// CORE USER CORE DASHBOARD INTERACTION ROUTES
 app.get('/balance', authenticateToken, async (req, res) => {
     try {
         const player = await User.findOne({ _id: req.userId });
@@ -173,6 +322,7 @@ app.get('/balance', authenticateToken, async (req, res) => {
     }
 });
 
+// CORE GAME CALCULATOR PROBABILITIES ENGINE
 app.post('/spin', authenticateToken, async (req, res) => {
     try {
         const betAmount = Math.floor(Number(req.body.betAmount));
@@ -202,6 +352,7 @@ app.post('/spin', authenticateToken, async (req, res) => {
         const initialBalanceSnap = player.balance;
         const gameTrackingRef = `GAME-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+        // 1. Math Evaluation Stage: Check for Draw State (3% probability boundary)
         const middleRoll = Math.random();
         if (middleRoll <= 0.03) {
             const exactAngle = Math.random() > 0.5 ? 0 : 180;
@@ -221,6 +372,8 @@ app.post('/spin', authenticateToken, async (req, res) => {
                 reference: `REF-${gameTrackingRef}`
             }).save();
 
+            logger.info(`Game Played: Resulting in House Draw (Perfect Middle Split)`, { username: player.username, wager: betAmount, refund });
+
             return res.json({
                 success: true,
                 outcomeType: "middle",
@@ -230,6 +383,7 @@ app.post('/spin', authenticateToken, async (req, res) => {
             });
         }
 
+        // 2. Math Evaluation Stage: standard win calculations with streak safety rules
         let winThreshold = 0.5; 
         if (player.lossStreak >= 3) {
             winThreshold = 0.4; 
@@ -240,7 +394,6 @@ app.post('/spin', authenticateToken, async (req, res) => {
         let exactAngle = 0;
 
         if (isWin) {
-            // Correct atomic calculation math reference path
             player.balance = initialBalanceSnap + betAmount;
             player.lossStreak = 0;
             player.totalWins += 1;
@@ -253,7 +406,6 @@ app.post('/spin', authenticateToken, async (req, res) => {
                 else { exactAngle = Math.floor(90 + (Math.random() * 90 - 45)); }
             }
         } else {
-            // Correct atomic calculation math reference path
             player.balance = initialBalanceSnap - betAmount;
             player.lossStreak += 1;
 
@@ -278,6 +430,8 @@ app.post('/spin', authenticateToken, async (req, res) => {
             reference: `SPIN-${gameTrackingRef}`
         }).save();
 
+        logger.info(`Game Played: Assessment calculated`, { username: player.username, betAmount, prediction, isWin, newBalance: player.balance });
+
         res.json({
             success: true,
             outcomeType: isNearMiss ? "near_miss" : "standard",
@@ -288,12 +442,12 @@ app.post('/spin', authenticateToken, async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Advanced Spin Engine Error:", error);
+        logger.error("Advanced Spin Engine Core Crash", { error: error.message });
         res.status(500).json({ message: "Server math error." });
     }
 }); 
 
-// PAYSTACK SECURE GATEWAY HUB
+// PAYSTACK OUTBOUND INTENT INITIALIZATION NODES
 app.post('/deposit/initialize', authenticateToken, async (req, res) => {
     try {
         const { amount } = req.body;
@@ -309,19 +463,15 @@ app.post('/deposit/initialize', authenticateToken, async (req, res) => {
 
         const amountInKobo = Math.floor(Number(amount) * 100);
         const userEmail = `${player.username}@kingscasino.com`; 
-        
         const callbackUrl = `${process.env.APP_BASE_URL}/deposit/callback`;
 
-        console.log(`[PAYSTACK DEBUG] Outbound sanitized email: ${userEmail}`);
-        console.log(`[PAYSTACK DEBUG] Constructed Callback Path: ${callbackUrl}`);
+        logger.info(`Requesting Paystack Checkout Session Allocation`, { username: player.username, amount: Number(amount) });
 
         const paystackResponse = await axios.post('https://api.paystack.co/transaction/initialize', {
             email: userEmail,
             amount: amountInKobo,
             callback_url: callbackUrl,
-            metadata: {
-                username: player.username
-            }
+            metadata: { username: player.username }
         }, {
             headers: {
                 'Authorization': `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -336,119 +486,50 @@ app.post('/deposit/initialize', authenticateToken, async (req, res) => {
         });
 
     } catch (routeError) {
-        console.error("Paystack Initialization Error:", routeError.response ? routeError.response.data : routeError.message);
+        logger.error("Paystack External Handshake Fault Encountered", { error: routeError.message });
         return res.status(500).json({ success: false, message: "Unable to connect with Paystack payment core engine." });
     }
 });
 
 app.get('/deposit/callback', (req, res) => {
-    try {
-        const { reference } = req.query;
-        console.log(`[REDIRECT] Player returned from Paystack checkout. Reference: ${reference}`);
+    const { reference } = req.query;
+    logger.info(`Client redirected back from checkout portal link context`, { reference });
 
-        res.send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Payment Verifying...</title>
-                <style>
-                    body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                    .loader-box { text-align: center; background: #1e293b; padding: 32px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 400px; width: 90%; }
-                    h2 { color: #f59e0b; margin: 0 0 12px 0; }
-                    p { color: #94a3b8; font-size: 14px; line-height: 1.5; }
-                    code { color: #f8fafc; background: #0f172a; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
-                    .btn { display: inline-block; margin-top: 20px; background: #22c55e; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; font-size: 14px; }
-                </style>
-            </head>
-            <body>
-                <div class="loader-box">
-                    <h2>Transaction Processed!</h2>
-                    <p>Reference: <code>${reference || 'N/A'}</code></p>
-                    <p>Your wallet balance will automatically update once verified.</p>
-                    <a href="/index.html" class="btn">Return to Dashboard</a>
-                </div>
-                <script>
-                    setTimeout(() => { window.location.href = '/index.html'; }, 4000);
-                </script>
-            </body>
-            </html>
-        `);
-    } catch (err) {
-        res.status(500).send("An error occurred during redirect processing.");
-    }
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Payment Verifying...</title>
+            <style>
+                body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .loader-box { text-align: center; background: #1e293b; padding: 32px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); max-width: 400px; width: 90%; }
+                h2 { color: #f59e0b; margin: 0 0 12px 0; }
+                p { color: #94a3b8; font-size: 14px; line-height: 1.5; }
+                code { color: #f8fafc; background: #0f172a; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
+                .btn { display: inline-block; margin-top: 20px; background: #22c55e; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; font-size: 14px; }
+            </style>
+        </head>
+        <body>
+            <div class="loader-box">
+                <h2>Transaction Processed!</h2>
+                <p>Reference: <code>${reference || 'N/A'}</code></p>
+                <p>Your wallet balance will automatically update once verified.</p>
+                <a href="/index.html" class="btn">Return to Dashboard</a>
+            </div>
+            <script>
+                setTimeout(() => { window.location.href = '/index.html'; }, 4000);
+            </script>
+        </body>
+        </html>
+    `);
 });
 
-app.post('/deposit/webhook', async (req, res) => {
-    try {
-        // SECURITY UPDATE: Validate Paystack Signature Header
-        const signature = req.headers['x-paystack-signature'];
-        if (!signature) {
-            return res.status(401).send("Missing security validation passport signature.");
-        }
-
-        const hash = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
-                           .update(JSON.stringify(req.body))
-                           .digest('hex');
-
-        if (hash !== signature) {
-            return res.status(401).send("Security verification failed. Signature mismatch.");
-        }
-
-        const event = req.body;
-
-        if (event && event.event === 'charge.success') {
-            const reference = event.data.reference;
-
-            // INTEGRITY UPDATE: Prevent duplicate processing of the same reference
-            const existingTx = await Transaction.findOne({ reference: reference });
-            if (existingTx) {
-                console.log(`[WEBHOOK WARNING] Reference ${reference} already processed. Skipping to avoid double-crediting.`);
-                return res.sendStatus(200);
-            }
-
-            const koboAmount = event.data.amount;
-            const nairaAmount = Math.floor(koboAmount / 100);
-            
-            const userEmail = event.data.customer.email;
-            const extractedUsername = userEmail.split('@')[0];
-
-            console.log(`[WEBHOOK] Verified payload received for user: ${extractedUsername}. Adding ₦${nairaAmount}`);
-
-            const player = await User.findOne({ 
-                username: { $regex: new RegExp('^' + extractedUsername + '$', 'i') } 
-            });
-            
-            if (player) {
-                const balanceBefore = player.balance;
-                const balanceAfter = balanceBefore + nairaAmount;
-
-                player.balance = balanceAfter;
-                await player.save();
-
-                const depositRecord = new Transaction({
-                    userId: player._id,
-                    type: 'deposit',
-                    amount: nairaAmount,
-                    balanceBefore: balanceBefore,
-                    balanceAfter: balanceAfter,
-                    reference: reference, 
-                    status: 'success'
-                });
-                await depositRecord.save();
-            }
-        }
-        res.sendStatus(200);
-    } catch (error) {
-        console.error("Webhook processing exception failure:", error.message);
-        res.sendStatus(500);
-    }
-});
-
-// SYSTEM OPERATIONS ANALYTICS ENGINE
+// METRICS & MANAGEMENT PORTAL OPERATIONS
 app.get('/admin/analytics', authenticateToken, isAdmin, async (req, res) => {
     try {
+        logger.info(`Admin Workspace Metrics Compiled Active State Triggered`, { authorizedAdminId: req.userId });
         const totalUsers = await User.countDocuments();
 
         const metrics = await Transaction.aggregate([
@@ -513,9 +594,9 @@ app.get('/admin/analytics', authenticateToken, isAdmin, async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Admin Analytics Engine Execution Failure:", error);
+        logger.error("Admin Analytics Extraction Subsystem Failure Fault", { error: error.message });
         res.status(500).json({ message: "Failed to compile administration metrics profiles." });
     }
 });
 
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}!`));
+app.listen(PORT, () => logger.info(`System Server Engine online and monitoring port address allocation listener: ${PORT}`));
