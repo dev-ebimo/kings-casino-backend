@@ -12,8 +12,6 @@ const winston = require('winston');
 
 // CRITICAL SECURITY FIXES: Imported missing production packages
 const helmet = require('helmet');
-const mongoSanitize = require('express-mongo-sanitize');
-const xss = require('xss-clean');
 const rateLimit = require('express-rate-limit');
 
 // CRITICAL SECURITY FIX: Never supply a default secret string inside your codebase
@@ -160,15 +158,45 @@ app.post('/deposit/webhook', express.raw({ type: 'application/json' }), async (r
 // Standard Parsers for all subsequent standard API route collections
 app.use(express.json()); 
 
-// Data Sanitization against NoSQL Injection (drops keys starting with $ or .)
+// THE FIX: Sanitize NoSQL injection attempts AND escape unsafe HTML characters
+// by mutating req.body / req.query / req.params IN PLACE. We deliberately do
+// NOT do `req.query = ...` anywhere below: on modern Express (5.x) and Node,
+// req.query is a getter-only property, and reassigning it throws
+// "Cannot set property query of #<IncomingMessage> which has only a getter"
+// (this is exactly what xss-clean and older sanitizer patterns do internally,
+// which is why that package has been removed).
+function sanitizeInPlace(obj) {
+    if (!obj || typeof obj !== 'object') return;
+
+    for (const key of Object.keys(obj)) {
+        // Strip Mongo operator-style keys ($gt, $where, "a.b", etc.)
+        if (key.startsWith('$') || key.includes('.')) {
+            delete obj[key];
+            continue;
+        }
+
+        const value = obj[key];
+
+        if (typeof value === 'string') {
+            obj[key] = value
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+        } else if (value && typeof value === 'object') {
+            sanitizeInPlace(value); // recurse into nested objects/arrays
+        }
+    }
+}
+
 app.use((req, res, next) => {
-    req.body = mongoSanitize(req.body);
-    req.query = mongoSanitize(req.query);
+    sanitizeInPlace(req.body);
+    sanitizeInPlace(req.query);
+    sanitizeInPlace(req.params);
     next();
 });
 
-// Data Sanitization against XSS (cleans malicious HTML fragments)
-app.use(xss());
 app.use(express.static('public')); 
 
 // Rate Limiting to prevent Login / Authentication Brute-Force Attacks
