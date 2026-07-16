@@ -7,23 +7,39 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="hud-navigation">
-        <div class="logo">King's Casino <span class="accent-text">Spin</span></div>
+    <div class="app-topbar">
+        <header class="hud-navigation">
+            <div class="logo">King's Casino <span class="accent-text">Spin</span></div>
 
-        <div class="nav-meta-wrapper">
-            <div class="player-profile-badge">
-                <div class="status-indicator-dot"></div>
-                <span class="profile-label">PLAYER</span>
-                <span id="player-tag" class="premium-username">Loading...</span>
-            </div>
-            
-            <div class="balance-badge">
-                Naira Balance: <span class="currency">₦</span><span id="balance-value">0.00</span>
-            </div>
+            <div class="nav-meta-wrapper">
+                <div class="player-profile-badge">
+                    <div class="status-indicator-dot"></div>
+                    <span class="profile-label">PLAYER</span>
+                    <span id="player-tag" class="premium-username">Loading...</span>
+                </div>
 
-            <button type="button" id="btn-logout">Logout</button>
+                <div class="balance-badge">
+                    Naira Balance: <span class="currency">₦</span><span id="balance-value">0.00</span>
+                </div>
+
+                <button type="button" id="btn-logout">Logout</button>
+            </div>
+        </header>
+
+        <div class="deposit-bar">
+            <span class="deposit-bar-label">Fund Balance <span class="deposit-bar-sub">via Paystack</span></span>
+            <div class="deposit-bar-controls">
+                <div class="input-wrapper deposit-input-wrapper">
+                    <span>₦</span>
+                    <input type="number" id="deposit-amount" value="1000" min="100" inputmode="numeric">
+                </div>
+                <button type="button" id="deposit-trigger" class="deposit-btn">Deposit</button>
+            </div>
         </div>
-    </header>
+        <div id="deposit-error" class="deposit-error"></div>
+    </div>
+
+    <div id="result-toast" class="result-toast" role="status" aria-live="polite"></div>
 
     <main class="arena-container">
         
@@ -72,24 +88,6 @@
             </div>
 
             <button type="button" id="spin-trigger" class="main-action-btn" disabled>Select Target Zone First</button>
-
-            <div class="stake-slider-group" style="margin-top: 1.5rem; border-top: 2px dashed #1e293b; padding-top: 1.5rem;">
-               <div class="label-row">
-                 <span style="font-weight: bold; color: var(--text-light);">Fund Game Balance</span>
-                 <span style="color: var(--text-muted); font-size: 0.85rem;">via Paystack</span>
-                </div>
-    
-                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                  <div class="input-wrapper" style="flex: 1;">
-                   <span>₦</span>
-                   <input type="number" id="deposit-amount" value="1000" min="100" style="width: 100%; text-align: left; padding-left: 5px;">
-                  </div>
-                 <button id="deposit-trigger" class="chip-btn" style="background-color: var(--accent-green); color: white; border: none; padding: 0 1.5rem; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                  Deposit
-                 </button>
-                </div>
-                <div id="deposit-error" style="font-size: 0.85rem; margin-top: 0.4rem; color: #ef4444;"></div>
-            </div>
         </section>
 
     </main>

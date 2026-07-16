@@ -44,6 +44,23 @@ const stakeSlider = document.getElementById('stake-slider');
 const btnPickUp = document.getElementById('btn-pick-up');
 const btnPickDown = document.getElementById('btn-pick-down');
 
+// Mobile-friendly outcome surface: shows the result no matter where the
+// player is scrolled to, so they don't have to hunt for it after staking.
+const resultToast = document.getElementById('result-toast');
+let toastHideTimer = null;
+
+function showResultToast(text, color) {
+    if (!resultToast) return;
+    resultToast.textContent = text;
+    resultToast.style.borderLeftColor = color;
+    resultToast.classList.add('show');
+
+    clearTimeout(toastHideTimer);
+    toastHideTimer = setTimeout(() => {
+        resultToast.classList.remove('show');
+    }, 3500);
+}
+
 // Logout button
 const logoutTrigger = document.getElementById('btn-logout');
 
@@ -120,7 +137,7 @@ function selectPredictionZone(zone) {
     
     if (zone === 'up') {
         btnPickUp.classList.add('active');
-        btnPickGroup = btnPickDown.classList.remove('active');
+        btnPickDown.classList.remove('active');
     } else {
         btnPickDown.classList.add('active');
         btnPickUp.classList.remove('active');
@@ -162,6 +179,12 @@ spinTrigger.addEventListener('click', async () => {
     spinTrigger.textContent = "Spinning...";
     resultMessage.textContent = "The bottle is losing velocity... hold on!";
     resultMessage.style.color = "#94a3b8";
+
+    // On narrow/mobile layouts the wheel sits above the wager controls, so
+    // bring it into view automatically instead of making the player scroll up.
+    if (window.innerWidth <= 900) {
+        document.querySelector('.stage-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
     try {
         // 2. Dispatch secure handshake payload to our authenticated server
@@ -231,12 +254,15 @@ spinTrigger.addEventListener('click', async () => {
             // Apply contextual semantic colors based on result profiles
             if (data.outcomeType === "middle") {
                 resultMessage.style.color = "#f59e0b"; // Warning amber for Draw/Push
+                showResultToast(data.message, "#f59e0b");
             } else if (data.isWin) {
                 resultMessage.style.color = "#10b981"; // Success green for Win
+                showResultToast(data.message, "#10b981");
                 sfxWin.currentTime = 0;
                 sfxWin.play().catch(err => console.log("Audio blocked"));
             } else {
                 resultMessage.style.color = "#ef4444"; // Danger red for Losses
+                showResultToast(data.message, "#ef4444");
                 sfxLoss.currentTime = 0;
                 sfxLoss.play().catch(err => console.log("Audio blocked"));
             }
@@ -296,8 +322,8 @@ const depositAmount = document.getElementById('deposit-amount');
 const depositError = document.getElementById('deposit-error');
 
 depositTrigger.addEventListener('click', async () => {
-    const amount = depositAmount.value;
-    if (!amount || amount < 100) {
+    const amount = Number(depositAmount.value);
+    if (!amount || isNaN(amount) || amount < 100) {
         depositError.textContent = "Minimum deposit allowed is ₦100.";
         return;
     }

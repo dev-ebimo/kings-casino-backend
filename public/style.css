@@ -21,6 +21,15 @@ body {
     box-sizing: border-box;
 }
 
+/* STICKY TOP BAR: keeps nav + deposit field pinned and visible at all times */
+.app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: var(--panel-bg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
 /* HEADS UP DISPLAY (HUD) NAV */
 .hud-navigation {
     display: flex;
@@ -30,6 +39,98 @@ body {
     padding: 1rem 2rem;
     border-bottom: 2px solid var(--border-glow);
     gap: 1rem;
+}
+
+/* ALWAYS-VISIBLE DEPOSIT BAR */
+.deposit-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    background-color: var(--bg-dark);
+    padding: 0.65rem 2rem;
+    border-bottom: 1px solid var(--border-glow);
+}
+
+.deposit-bar-label {
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.deposit-bar-sub {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-left: 0.3rem;
+}
+
+.deposit-bar-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.deposit-input-wrapper {
+    width: 140px;
+}
+
+.deposit-input-wrapper input {
+    width: 100%;
+    text-align: left;
+}
+
+.deposit-btn {
+    background-color: var(--accent-green);
+    color: white;
+    border: none;
+    padding: 0.55rem 1.4rem;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+.deposit-btn:hover { opacity: 0.9; }
+.deposit-btn:active:not(:disabled) { transform: scale(0.97); }
+.deposit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.deposit-error {
+    padding: 0 2rem 0.5rem;
+    font-size: 0.8rem;
+    color: var(--danger);
+    background-color: var(--bg-dark);
+}
+.deposit-error:empty { display: none; }
+
+/* FLOATING RESULT TOAST: surfaces the spin outcome no matter where the user
+   is scrolled to, so mobile players never have to hunt for it */
+.result-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%) translateY(120%);
+    max-width: 90vw;
+    background-color: var(--panel-bg);
+    border-left: 4px solid #3b82f6;
+    color: var(--text-light);
+    padding: 0.9rem 1.3rem;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    font-weight: 600;
+    font-size: 0.95rem;
+    z-index: 200;
+    opacity: 0;
+    transition: transform 0.35s ease, opacity 0.35s ease;
+    pointer-events: none;
+}
+
+.result-toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
 }
 
 .logo {
@@ -193,6 +294,22 @@ body {
     background: linear-gradient(to bottom, rgba(16, 185, 129, 0.15) 50%, rgba(249, 115, 22, 0.15) 50%);
 }
 
+/* THE FIX: a grounded shadow that stays put on the floor of the wheel,
+   instead of spinning around with the bottle (which looked clunky since
+   a shadow shouldn't rotate with its light source). */
+.wheel-canvas::after {
+    content: '';
+    position: absolute;
+    width: 150px;
+    height: 22px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 72%);
+    z-index: 5;
+    pointer-events: none;
+}
+
 /* Add a crisp horizontal split line */
 .radial-ring::before {
     content: '';
@@ -214,7 +331,7 @@ body {
     transform: rotate(0deg);
     transition: transform 4s cubic-bezier(0.25, 1, 0.5, 1);
     cursor: pointer;
-    filter: drop-shadow(0px 8px 16px rgba(0, 0, 0, 0.6));
+    filter: drop-shadow(0px 3px 4px rgba(0, 0, 0, 0.35));
 }
 
 /* 1. The Bottle Cap / Lip */
@@ -240,6 +357,8 @@ body {
     background: linear-gradient(to bottom, #34d399, #10b981, #065f46); /* Beautiful 3D cylindrical sheen */
     border-radius: 12px 18px 18px 12px; /* Tapered shoulders and rounded base */
     position: relative;
+    overflow: hidden; /* THE FIX: clip children to the rounded silhouette so the
+                          reflection stripe below can't poke past the curved edges */
     box-shadow: inset 0 4px 8px rgba(255,255,255,0.3), inset 0 -4px 8px rgba(0,0,0,0.4);
 }
 
@@ -247,9 +366,9 @@ body {
 .css-bottle-body::after {
     content: '';
     position: absolute;
-    left: 10px;
+    left: 8%;
     top: 8px;
-    width: 150px;
+    width: 84%;
     height: 6px;
     background-color: rgba(255, 255, 255, 0.4);
     border-radius: 3px;
@@ -450,6 +569,37 @@ input[type="range"]::-webkit-slider-thumb {
     .player-profile-badge, .balance-badge, #btn-logout {
         padding: 0.4rem 0.8rem;
         font-size: 0.8rem;
+    }
+
+    .deposit-bar {
+        padding: 0.6rem 1rem;
+        justify-content: center;
+    }
+
+    .deposit-bar-label {
+        width: 100%;
+        text-align: center;
+        font-size: 0.8rem;
+    }
+
+    .deposit-bar-controls {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .deposit-input-wrapper {
+        width: 110px;
+    }
+
+    .deposit-error {
+        padding: 0 1rem 0.5rem;
+        text-align: center;
+    }
+
+    .result-toast {
+        width: 92vw;
+        text-align: center;
+        font-size: 0.9rem;
     }
 
     /* Force the desktop grid columns into a singular, fluid column */
